@@ -1,0 +1,133 @@
+<?php
+/**
+ * XNRCMS<562909771@qq.com>
+ * ============================================================================
+ * 版权所有 2018-2028 小能人科技有限公司，并保留所有权利。
+ * ----------------------------------------------------------------------------
+ * 这不是一个自由软件！您只能在不用于商业目的的前提下对程序代码进行修改和使用 .
+ * 不允许对程序代码以任何形式任何目的的再发布。
+ * ============================================================================
+ * Model是根据数据库的表名一一对应的文件，文件名和类名必须是表名，采用驼峰命名法，表名如果有下划线(_)需去除，然后
+ * 将紧挨下划线的字母大写
+ */
+namespace app\common\model;
+
+use think\Model;
+use think\Db;
+
+class Devform2 extends Base
+{
+    //默认主键为id，如果你没有使用id作为主键名，需要在此设置
+    protected $pk = 'id';
+
+    //默认查询方法，如果特殊需求，则自行改造
+    public function formatWhereDefault($model,$parame)
+    {
+        if (isset($parame['search']) && !empty($parame['search']))
+        {
+          $search  = json_decode($parame['search'],true);
+
+          if (!empty($search))
+          {
+            foreach ($search as $key => $value)
+            {
+              if (!empty($value) && (is_string($value) || is_numeric($value)) )
+              {
+                $model->where('main.'.$key,'eq',trim($value));
+              }
+            }
+          }
+        }
+
+        $ownerid  = isset($parame['ownerid']) ? $parame['ownerid'] : -1;
+        $model->where('main.ownerid','=',$ownerid);
+
+        return $model;
+    }
+
+    public function getRow($id = 0)
+    {
+      $info       = $this->getOneById($id);
+      $info       = !empty($info) ? $info->toArray() : [];
+
+      //自定义扩展
+      //.......
+
+      return $info;
+    }
+
+    public function getList($parame)
+    {
+      $ckey       = (isset($parame['cacheKey']) && !empty($parame['cacheKey'])) ? $this->name . json_encode($parame['cacheKey']) : '';
+      $ownerid    = isset($parame['ownerid']) ? $parame['ownerid'] : -1;
+      $ctag       = 'table_' . $this->name . '_getList_Ownerid='.$ownerid;
+      $data       = $this->getCache($ckey);
+
+      //自定义扩展
+      //.......
+      if (empty($data) || !isset($data['lists']) || empty($data['lists']))
+      {
+          $data   = $this->getPageList($parame);
+          $this->setCache($ckey,$data,$ctag);
+      }
+
+      return $data;
+    }
+
+    public function saveData($id = 0,$parame = [])
+    {
+        $info      = $id <= 0 ? $this->addData($parame) : $this->updateById($id,$parame);
+        $info      = !empty($info) ? $info->toArray() : [];
+
+        //自定义扩展
+        //.......
+        
+        $ownerid  = isset($info['ownerid']) ? $info['ownerid'] : 0;
+        $ctag     = 'table_' . $this->name . '_getList_Ownerid='.$ownerid;
+
+        $this->clearCache(['ctag'=>$ctag]);
+
+        return $info;
+    }
+
+    public function deleteData($id = 0)
+    {
+      $info         = $this->getRow($id);
+
+      if (!empty($info))
+      {
+        $ownerid      = isset($info['ownerid']) ? $info['ownerid'] : 0;
+        $ctag         = 'table_' . $this->name . '_getList_Ownerid='.$ownerid;
+        $delCount     = $this->delData($id);
+
+        $this->clearCache(['ctag' => $ctag]);
+      }else{
+        $delCount     = 0;
+      }
+
+      return $delCount;
+    }
+
+    public function checkFormStatus($mid = 0,$id = 0)
+    {
+      $res   = $this->where('id','<>',$id)->where('status','eq',1)->where('mid','eq',$mid)->value("id");
+      return !empty($res) ? true : false;
+    }
+
+    public function getFormInfoByMenuId($mid = 0)
+    {
+      $info   = $this->where('status','eq',1)->where('mid','eq',$mid)->limit(1)->find();
+      return !empty($info) ? $info->toArray() : [];
+    }
+
+    public function checkFormTitle($value,$id,$ownerid,$field)
+    {
+        if ($ownerid <= 0) return false;
+
+        $res    = $this->where('id','not in',[$id])->where("ownerid","=",$ownerid)->where($field,'eq',$value)->value($field);
+        
+        return !empty($res) ? true : false;
+    }
+    //自行扩展更多
+    //...
+}
